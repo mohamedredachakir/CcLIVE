@@ -53,6 +53,7 @@ Microsoft Teams / Google Meet / Zoom — without modifying those apps.
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[all]"      # everything (audio + ASR + translation + UI)
 # or pick extras: .[asr]  .[translate]  .[audio]  .[ui]  .[argos]
+# .[translate] pulls transformers + torch for NLLB; .[argos] is lighter (CPU-friendly)
 ```
 
 The core package is lightweight; the heavy ML/GUI/audio dependencies live in the
@@ -96,13 +97,28 @@ Common flags:
 
 ### Capturing meeting audio (Teams / Meet / Zoom)
 
-The engine never touches the meeting app. Point it at system audio via a loopback
-device:
+To translate what the **other participants** say you must capture *system output*
+(what comes out of your speakers), not your microphone — so pass `--loopback`. The
+engine never touches the meeting app.
 
-- **Linux (PulseAudio/PipeWire)**: select a `*.monitor` source with
-  `--device "<name>"` (see `rtst list-devices`).
-- **Windows**: enable *Stereo Mix* or install a virtual audio cable, then select it.
-- **macOS**: install a loopback driver (e.g. BlackHole) and select it.
+```bash
+# Translate the meeting you hear (English) into French, in a floating overlay
+rtst run --source en --target fr --loopback --captions overlay
+```
+
+`--loopback` resolves a system-audio source automatically per platform:
+
+- **Windows (Teams desktop)**: uses **WASAPI loopback** on your default output
+  device — no extra drivers or *Stereo Mix* needed. Just `--loopback`.
+- **Linux (PulseAudio/PipeWire)**: auto-selects the output's `*.monitor` source.
+  If you have several, name one explicitly with `--loopback --device "<name>"`
+  (see `rtst list-devices`).
+- **macOS**: there is no built-in loopback; install a virtual device such as
+  [BlackHole](https://github.com/ExistentialAudio/BlackHole), route output to it,
+  then `--loopback --device "BlackHole 2ch"`.
+
+Loopback devices usually run at 44.1/48 kHz and may be stereo; capture downmixes to
+mono and resamples to 16 kHz for the ASR automatically.
 
 Run with `--captions overlay` and the translucent caption window floats over the
 meeting.
@@ -112,6 +128,36 @@ meeting.
 French, Arabic (incl. dialect → MSA via the model), English, Spanish, German,
 Italian, and any language the underlying model supports (pass it by code). You can
 change `--target` per run; the language is normalized from names/aliases/region tags.
+
+## Performance & latency
+
+Latency per utterance ≈ *ASR time* + *translation time*. Both backends are
+lazy-loaded; the **model size and translation backend dominate** whether you hit
+the <2 s target. Measured on this repo's CI-class machine (**CPU-only**, int8
+ASR, greedy decoding — a worst case; a GPU is dramatically faster):
+
+| Stage | Setting | Speed (CPU) |
+|-------|---------|-------------|
+| ASR | whisper `tiny` | ~0.11× real-time (RTF) |
+| ASR | whisper `base` | ~0.22× RTF |
+| ASR | whisper `small` (default) | ~0.71× RTF |
+| Translation | **Argos** per segment | **~0.2 s** |
+| Translation | NLLB-200 600M per segment | ~4–6 s |
+
+**Takeaways**
+
+- On **CPU**, NLLB-200 is too slow for live captions (~4–6 s/segment). For
+  real-time on a laptop use **Argos**, which translates in ~0.2 s:
+
+  ```bash
+  rtst run --target fr --model base --translation-backend argos --loopback
+  ```
+
+- whisper `small` (the default) has RTF ~0.7 on CPU, so processing a 6 s segment
+  takes ~4 s — fine for accuracy but not for snappy partials. Drop to `tiny`/`base`
+  for lower latency.
+- With a **GPU**, NLLB-200 + whisper `small`/`medium` comfortably fit the <2 s
+  budget at higher quality; the device is auto-detected (`--asr-device cuda`).
 
 ## Development
 

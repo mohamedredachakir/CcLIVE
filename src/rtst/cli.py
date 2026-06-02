@@ -141,6 +141,7 @@ def _run_console(config: Config, pipeline) -> int:  # noqa: ANN001
             sample_rate=config.audio.sample_rate,
             block_ms=config.audio.frame_ms,
             device=config.audio.device,
+            use_loopback=config.audio.use_loopback,
         ) as mic:
             for _ in pipeline.run(mic.frames()):
                 pass
@@ -161,6 +162,7 @@ def _run_with_overlay(config: Config, pipeline, captions) -> int:  # noqa: ANN00
                 sample_rate=config.audio.sample_rate,
                 block_ms=config.audio.frame_ms,
                 device=config.audio.device,
+                use_loopback=config.audio.use_loopback,
             ) as mic:
                 for _ in pipeline.run(mic.frames()):
                     pass

@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "realtime-speech-translator"
+version = "0.1.0"
+description = "Local-first real-time speech translation engine for live meetings (streaming ASR + context-aware translation + caption overlay)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ejoutiya" }]
+keywords = ["speech", "translation", "asr", "whisper", "nllb", "captions", "realtime"]
+
+# Core dependencies are intentionally lightweight so the pipeline logic and the
+# full test-suite run without downloading multi-GB models. Heavy/optional
+# backends (audio capture, ASR, translation, GUI) live in extras below.
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+audio = ["sounddevice>=0.4.6"]
+asr = ["faster-whisper>=1.0.0"]
+# NLLB translation runs through CTranslate2 + a tokenizer; transformers provides
+# an easy fallback. Argos is a pure-offline alternative.
+translate = ["transformers>=4.38", "sentencepiece>=0.1.99", "ctranslate2>=4.0"]
+argos = ["argostranslate>=1.9"]
+ui = ["PyQt6>=6.5"]
+all = [
+    "sounddevice>=0.4.6",
+    "faster-whisper>=1.0.0",
+    "transformers>=4.38",
+    "sentencepiece>=0.1.99",
+    "ctranslate2>=4.0",
+    "PyQt6>=6.5",
+]
+dev = ["pytest>=7.4", "ruff>=0.5.0"]
+
+[project.scripts]
+rtst = "rtst.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rtst = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

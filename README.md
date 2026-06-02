@@ -89,6 +89,7 @@ Common flags:
 |------|---------|
 | `-s/--source` | source language (`auto` to detect) |
 | `-t/--target` | target language (code or name: `fr`, `Arabic`, …) |
+| `--preset` | `fast` (CPU real-time: whisper `base` + Argos) or `quality` (whisper `small` + NLLB, needs a GPU) |
 | `--model` | whisper size: `tiny`/`base`/`small`/`medium`/`large-v3` |
 | `--captions` | `console` (default) or `overlay` |
 | `--mode` | `compact` (translation only) or `dual` |
@@ -147,11 +148,16 @@ ASR, greedy decoding — a worst case; a GPU is dramatically faster):
 **Takeaways**
 
 - On **CPU**, NLLB-200 is too slow for live captions (~4–6 s/segment). For
-  real-time on a laptop use **Argos**, which translates in ~0.2 s:
+  real-time on a laptop use the `fast` preset (whisper `base` + Argos, which
+  translates in ~0.2 s):
 
   ```bash
-  rtst run --target fr --model base --translation-backend argos --loopback
+  rtst run --target fr --preset fast --loopback --captions overlay
   ```
+
+  `--preset fast` is shorthand for `--model base --translation-backend argos`
+  plus low-latency tuning. Any flag you pass explicitly overrides the preset
+  (e.g. add `--model tiny` to go even faster).
 
 - whisper `small` (the default) has RTF ~0.7 on CPU, so processing a 6 s segment
   takes ~4 s — fine for accuracy but not for snappy partials. Drop to `tiny`/`base`

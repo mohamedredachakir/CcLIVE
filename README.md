@@ -124,6 +124,67 @@ mono and resamples to 16 kHz for the ASR automatically.
 Run with `--captions overlay` and the translucent caption window floats over the
 meeting.
 
+### Windows + Microsoft Teams desktop (step by step)
+
+This is the most common setup: translate what the other people in a Teams call say,
+live, in a caption window on top of Teams. No admin rights, no virtual audio driver,
+and no changes to Teams itself — Windows' built-in **WASAPI loopback** records your
+speakers directly.
+
+**1. Install Python 3.10+** from [python.org](https://www.python.org/downloads/windows/)
+and tick *"Add python.exe to PATH"* during setup.
+
+**2. Install the engine** (in *PowerShell* or *Command Prompt*):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -e ".[all]"
+```
+
+`.[all]` pulls in audio + ASR + translation + the overlay UI. For real-time on a CPU
+laptop you only really need `.[asr]` + `.[argos]` + `.[ui]`, but `.[all]` is simplest.
+
+**3. Pick the audio you want translated.** In a Teams call there are two streams:
+
+| You want to translate… | Use | Why |
+|------------------------|-----|-----|
+| What **others** say (most common) | `--loopback` | records your speakers (the meeting audio) |
+| What **you** say into your mic | *(no flag — mic is the default)* | records your microphone |
+
+**4. Run it.** Start this **before or during** the call:
+
+```powershell
+rtst run --source en --target fr --preset fast --loopback --captions overlay
+```
+
+- `--source en` — the language being spoken in the meeting (use `auto` to detect).
+- `--target fr` — the language you want the captions in (`ar`, `es`, `de`, … or a name).
+- `--preset fast` — whisper `base` + Argos, tuned for real-time on a CPU.
+- `--loopback` — capture the meeting audio (Teams output), not your mic.
+- `--captions overlay` — show a floating, always-on-top caption window.
+
+A translucent caption window appears; drag it over the Teams window and keep talking —
+captions update in place with ~1–2 s latency. Press `Ctrl+C` in the terminal to stop.
+
+**5. (Optional) translate your own speech** for the other participants to read:
+
+```powershell
+rtst run --source fr --target en --preset fast --captions overlay
+```
+
+**Tips & troubleshooting (Windows)**
+
+- **No captions / silence**: confirm Teams audio actually plays through your default
+  output device (Windows *Settings → System → Sound*). `--loopback` follows the
+  **default** output, so if Teams is routed to a headset, make that headset the default
+  output (or run `rtst list-devices` and pass `--loopback --device "<name>"`).
+- **First run is slow**: the whisper/Argos models download once, then are cached.
+- **Want maximum speed**: add `--model tiny`. **Want better accuracy** and you have an
+  NVIDIA GPU: use `--preset quality --asr-device cuda`.
+- **Privacy**: everything runs locally; nothing is sent to the cloud unless you add
+  `--allow-cloud`.
+
 ## Supported languages
 
 French, Arabic (incl. dialect → MSA via the model), English, Spanish, German,

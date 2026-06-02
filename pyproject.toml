@@ -22,9 +22,9 @@ dependencies = [
 [project.optional-dependencies]
 audio = ["sounddevice>=0.4.6"]
 asr = ["faster-whisper>=1.0.0"]
-# NLLB translation runs through CTranslate2 + a tokenizer; transformers provides
-# an easy fallback. Argos is a pure-offline alternative.
-translate = ["transformers>=4.38", "sentencepiece>=0.1.99", "ctranslate2>=4.0"]
+# NLLB translation runs through Hugging Face transformers, which needs a torch
+# runtime. Argos is a lighter, pure-offline alternative (recommended on CPU).
+translate = ["transformers>=4.38", "sentencepiece>=0.1.99", "ctranslate2>=4.0", "torch>=2.0"]
 argos = ["argostranslate>=1.9"]
 ui = ["PyQt6>=6.5"]
 all = [
@@ -33,6 +33,8 @@ all = [
     "transformers>=4.38",
     "sentencepiece>=0.1.99",
     "ctranslate2>=4.0",
+    "torch>=2.0",
+    "argostranslate>=1.9",
     "PyQt6>=6.5",
 ]
 dev = ["pytest>=7.4", "ruff>=0.5.0"]

@@ -29,11 +29,18 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("-s", "--source", default="auto", help="Source language (default: auto).")
     run.add_argument("-t", "--target", default="en", help="Target language (default: en).")
     run.add_argument(
-        "--model", default="small", help="Whisper model size (tiny/base/small/medium/large-v3)."
+        "--preset", default=None, choices=["fast", "quality"],
+        help="Tuning preset. 'fast' = whisper base + Argos for CPU real-time; "
+             "'quality' = whisper small + NLLB (needs a GPU). Explicit flags override it.",
+    )
+    run.add_argument(
+        "--model", default=None,
+        help="Whisper model size (tiny/base/small/medium/large-v3). Default: small.",
     )
     run.add_argument("--asr-device", default="auto", help="ASR device: auto/cpu/cuda.")
     run.add_argument(
-        "--translation-backend", default="nllb", choices=["nllb", "argos", "identity"]
+        "--translation-backend", default=None, choices=["nllb", "argos", "identity"],
+        help="Translation backend. Default: nllb.",
     )
     run.add_argument("--translation-model", default="facebook/nllb-200-distilled-600M")
     run.add_argument("--captions", default="console", choices=["console", "overlay"])
@@ -56,19 +63,51 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Per-preset defaults. Values are only applied when the user did not pass the
+# corresponding flag explicitly, so explicit flags always win.
+_PRESETS: dict[str, dict[str, object]] = {
+    # Real-time on a CPU laptop: small/cheap ASR + the fast Argos translator,
+    # with partials emitted a little less often to leave CPU for ASR.
+    "fast": {
+        "model": "base",
+        "translation_backend": "argos",
+        "partial_interval_ms": 900,
+        "min_partial_delta": 8,
+    },
+    # Higher quality (needs a GPU to stay under ~2 s): the project defaults.
+    "quality": {
+        "model": "small",
+        "translation_backend": "nllb",
+    },
+}
+
+
 def _config_from_args(args: argparse.Namespace) -> Config:
     device: str | int | None = args.device
     if isinstance(device, str) and device.isdigit():
         device = int(device)
+
+    preset = _PRESETS.get(args.preset, {})
+    audio_defaults, translation_defaults = AudioConfig(), TranslationConfig()
+    model = args.model or preset.get("model") or "small"
+    backend = args.translation_backend or preset.get("translation_backend") or "nllb"
+    partial_interval_ms = preset.get("partial_interval_ms", audio_defaults.partial_interval_ms)
+    min_partial_delta = preset.get("min_partial_delta", translation_defaults.min_partial_delta)
+
     return Config(
         source_language=args.source,
         target_language=args.target,
-        audio=AudioConfig(use_loopback=args.loopback, device=device),
-        asr=ASRConfig(model_size=args.model, device=args.asr_device),
+        audio=AudioConfig(
+            use_loopback=args.loopback,
+            device=device,
+            partial_interval_ms=partial_interval_ms,
+        ),
+        asr=ASRConfig(model_size=model, device=args.asr_device),
         translation=TranslationConfig(
-            backend=args.translation_backend,
+            backend=backend,
             model=args.translation_model,
             allow_cloud=args.allow_cloud,
+            min_partial_delta=min_partial_delta,
         ),
         caption=CaptionConfig(backend=args.captions, mode=args.mode),
     )
@@ -141,6 +180,7 @@ def _run_console(config: Config, pipeline) -> int:  # noqa: ANN001
             sample_rate=config.audio.sample_rate,
             block_ms=config.audio.frame_ms,
             device=config.audio.device,
+            use_loopback=config.audio.use_loopback,
         ) as mic:
             for _ in pipeline.run(mic.frames()):
                 pass
@@ -161,6 +201,7 @@ def _run_with_overlay(config: Config, pipeline, captions) -> int:  # noqa: ANN00
                 sample_rate=config.audio.sample_rate,
                 block_ms=config.audio.frame_ms,
                 device=config.audio.device,
+                use_loopback=config.audio.use_loopback,
             ) as mic:
                 for _ in pipeline.run(mic.frames()):
                     pass

@@ -139,7 +139,7 @@ def _OverlayWindow(QtCore, QtGui, QtWidgets, **kwargs):  # noqa: ANN001, N802
             self.setFixedWidth(width)
             self.move(
                 screen.left() + (screen.width() - width) // 2,
-                int(screen.height() * 0.82),
+                screen.top() + int(screen.height() * 0.82),
             )
 
         def emit_caption(self, text: str, final: bool) -> None:

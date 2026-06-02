@@ -90,12 +90,16 @@ class NLLBTranslator(Translator):
 
 def _target_bos_id(tokenizer, tgt_code: str) -> int:
     """Resolve the forced BOS token id for the target language across versions."""
-    convert = getattr(tokenizer, "convert_tokens_to_ids", None)
-    if convert is not None:
-        token_id = convert(tgt_code)
-        if token_id is not None and token_id >= 0:
-            return token_id
+    # `lang_code_to_id` is the authoritative map on tokenizers that expose it.
     lang_map = getattr(tokenizer, "lang_code_to_id", None)
     if lang_map and tgt_code in lang_map:
         return lang_map[tgt_code]
+    convert = getattr(tokenizer, "convert_tokens_to_ids", None)
+    if convert is not None:
+        token_id = convert(tgt_code)
+        # convert_tokens_to_ids returns the (non-negative) UNK id for unknown
+        # tokens, so an UNK result means the language code is not in the vocab.
+        unk_id = getattr(tokenizer, "unk_token_id", None)
+        if token_id is not None and token_id >= 0 and token_id != unk_id:
+            return token_id
     raise ValueError(f"Could not resolve NLLB target token for {tgt_code!r}")
